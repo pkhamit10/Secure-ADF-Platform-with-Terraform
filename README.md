@@ -1,7 +1,7 @@
 # Secure-ADF-Platform-with-Terraform
 # Secure Azure Data Platform with Terraform
 
-Infrastructure as Code project that deploys a secure data ingestion foundation on Azure using **Terraform**. It provisions **Azure Data Factory (ADF)** with a **Managed Virtual Network**, connects it to **ADLS Gen2** over a **Managed Private Endpoint**, and keeps secrets in **Azure Key Vault**. Access is controlled entirely through **Managed Identity and RBAC**, with no access keys or stored credentials.
+Infrastructure as Code project for a secure data ingestion foundation on Azure using **Terraform**. The intended platform includes **Azure Data Factory (ADF)** with a **Managed Virtual Network**, **ADLS Gen2**, and **Azure Key Vault**. The platform resource and module files are currently placeholders; only the Terraform state bootstrap is implemented.
 
 ---
 
@@ -45,7 +45,7 @@ flowchart TD
 
 ---
 
-## What Gets Deployed
+## Planned Resources
 
 | Resource | Purpose |
 |---|---|
@@ -75,7 +75,7 @@ flowchart TD
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.5
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), logged in with `az login`
-- An Azure subscription where you have **Owner** or **Contributor + User Access Administrator** (needed to create role assignments)
+- An Azure subscription where the bootstrap identity can create resource groups and role assignments (for example, **Owner**, or **Contributor + User Access Administrator** at subscription scope)
 
 ---
 
@@ -83,17 +83,17 @@ flowchart TD
 
 ```
 .
-├── main.tf             # Resource group, storage, Key Vault, ADF
-├── network.tf          # Managed VNet integration runtime, managed private endpoint
-├── rbac.tf             # Role assignments for the ADF managed identity
-├── variables.tf        # Input variables
-├── outputs.tf          # Useful outputs (names, IDs, endpoints)
-├── providers.tf        # Provider and backend configuration
-├── terraform.tfvars    # Your environment values (do not commit secrets)
+├── bootstrap/          # Independent Terraform state storage and role assignments
+├── modules/
+│   ├── storage/        # Placeholder storage module
+│   └── data-factory/   # Placeholder Data Factory module
+├── main.tf             # Placeholder platform configuration
+├── variables.tf        # Placeholder input variables
+├── outputs.tf          # Placeholder outputs
+├── providers.tf        # Azure provider and remote backend configuration
+├── terraform.tfvars    # Environment values (do not commit secrets)
 └── README.md
 ```
-
-> Adjust the file names to match your repository layout.
 
 ---
 
@@ -102,8 +102,8 @@ flowchart TD
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/pkhamit10/<your-repo-name>.git
-cd <your-repo-name>
+git clone https://github.com/pkhamit10/Secure-ADF-Platform-with-Terraform.git
+cd Secure-ADF-Platform-with-Terraform
 ```
 
 ### 2. Log in to Azure
@@ -111,31 +111,52 @@ cd <your-repo-name>
 ```bash
 az login
 az account set --subscription "<subscription-id>"
+export ARM_SUBSCRIPTION_ID="<subscription-id>"
 ```
 
-### 3. Configure variables
+### 3. Bootstrap Terraform state
 
-Create a `terraform.tfvars` file:
+The separate bootstrap configuration uses **local state** to create a resource group, a storage account, a private `tfstate` container, and two role assignments for the current Terraform identity: **Contributor** on the bootstrap resource group and **Storage Blob Data Contributor** on the container. Contributor on this resource group does not grant permissions to deploy the platform in another resource group or to create role assignments. The bootstrap identity must already have the prerequisite permissions above.
 
-```hcl
-location            = "westeurope"
-resource_group_name = "rg-dataplatform-dev"
-storage_account_name = "stdataplatformdev001"   # globally unique, 3-24 lowercase letters/numbers
-key_vault_name      = "kv-dataplatform-dev-001" # globally unique
-data_factory_name   = "adf-dataplatform-dev"
-```
-
-### 4. Deploy
+Replace the example names with your own globally unique storage account name:
 
 ```bash
-terraform init
-terraform fmt -check
-terraform validate
-terraform plan -out tfplan
-terraform apply tfplan
+terraform -chdir=bootstrap init
+terraform -chdir=bootstrap validate
+terraform -chdir=bootstrap plan \
+  -var="resource_group_name=rg-adf-tfstate-dev" \
+  -var="storage_account_name=<globally-unique-storage-account-name>"
+terraform -chdir=bootstrap apply \
+  -var="resource_group_name=rg-adf-tfstate-dev" \
+  -var="storage_account_name=<globally-unique-storage-account-name>"
 ```
 
-### 5. Approve the Managed Private Endpoint
+Use the **same identity** for subsequent bootstrap operations: changing it changes the role assignment principal. The state account disables shared-key and public blob access, requires HTTPS/TLS 1.2, and enables blob versioning and seven-day blob and container soft deletion. The storage endpoint remains publicly reachable; use network restrictions suitable for your runners if required.
+
+The bootstrap state remains local in `bootstrap/terraform.tfstate`. Protect and back up that file securely, including after any later changes; it is not stored in the new backend automatically. Never commit state or secrets. Do not destroy the bootstrap resources while they contain state needed by the platform.
+
+To run the offline, mocked bootstrap tests, use Terraform 1.7 or later and run `terraform -chdir=bootstrap test` after initialization.
+
+### 4. Configure the platform backend
+
+After applying bootstrap, use its outputs to initialize the root configuration. Allow time for Azure RBAC permissions to propagate if initialization is denied.
+
+```bash
+terraform init \
+  -backend-config="resource_group_name=$(terraform -chdir=bootstrap output -raw resource_group_name)" \
+  -backend-config="storage_account_name=$(terraform -chdir=bootstrap output -raw storage_account_name)" \
+  -backend-config="container_name=$(terraform -chdir=bootstrap output -raw container_name)" \
+  -backend-config="key=platform.tfstate" \
+  -backend-config="use_azuread_auth=true"
+```
+
+The root configuration uses the same Azure CLI identity. Other users or CI identities need their own appropriate state-container data role and platform deployment permissions; this bootstrap grants only the current identity. Use separate backend keys for separate environments.
+
+### 5. Implement and deploy the platform
+
+The root resource files and modules are placeholders and currently deploy no platform resources. Add the platform configuration and its variables before running `terraform plan` and `terraform apply`. Do not put credentials in `terraform.tfvars`.
+
+### 6. Approve the Managed Private Endpoint
 
 A managed private endpoint is created in a **Pending** state. It must be approved on the target resource before ADF can use it:
 
@@ -148,11 +169,13 @@ az network private-endpoint-connection approve \
   --description "Approved for ADF"
 ```
 
-### 6. Clean up
+### 7. Clean up
 
 ```bash
 terraform destroy
 ```
+
+This destroys resources managed by the root configuration, not the separate bootstrap. Only remove the bootstrap after all dependent state is no longer needed and is safely backed up.
 
 ---
 
