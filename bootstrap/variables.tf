@@ -1,17 +1,19 @@
 variable "resource_group_name" {
   description = "Resource group for Terraform state storage."
   type        = string
+  default     = "rg-tfstate"
 }
 
 variable "location" {
   description = "Azure region for Terraform state resources."
   type        = string
-  default     = "westeurope"
+  default     = "francecentral"
 }
 
 variable "storage_account_name" {
   description = "Globally unique storage account name (3-24 lowercase letters and numbers)."
   type        = string
+  default     = "dfpkstorage"
 
   validation {
     condition     = can(regex("^[a-z0-9]{3,24}$", var.storage_account_name))
