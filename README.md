@@ -1,7 +1,6 @@
-# Secure-ADF-Platform-with-Terraform
-# Secure Azure Data Platform with Terraform
+# Secure Azure Data Factory Platform with Terraform
 
-Infrastructure as Code project for a secure data ingestion foundation on Azure using **Terraform**. The intended platform includes **Azure Data Factory (ADF)** with a **Managed Virtual Network**, **ADLS Gen2**, and **Azure Key Vault**. The platform resource and module files are currently placeholders; only the Terraform state bootstrap is implemented.
+Infrastructure as Code project for a secure data ingestion foundation on Azure using **Terraform**. The intended platform includes **Azure Data Factory (ADF)** with a **Managed Virtual Network**, **ADLS Gen2**, and **Azure Key Vault**. The state bootstrap and platform resource group are implemented; the other platform resources and modules are placeholders.
 
 ---
 
@@ -87,9 +86,9 @@ flowchart TD
 ├── modules/
 │   ├── storage/        # Placeholder storage module
 │   └── data-factory/   # Placeholder Data Factory module
-├── main.tf             # Placeholder platform configuration
-├── variables.tf        # Placeholder input variables
-├── outputs.tf          # Placeholder outputs
+├── main.tf             # Platform resource group
+├── variables.tf        # Platform input variables
+├── outputs.tf          # Platform resource group outputs
 ├── providers.tf        # Azure provider and remote backend configuration
 ├── terraform.tfvars    # Environment values (do not commit secrets)
 └── README.md
@@ -152,9 +151,18 @@ terraform init \
 
 The root configuration uses the same Azure CLI identity. Other users or CI identities need their own appropriate state-container data role and platform deployment permissions; this bootstrap grants only the current identity. Use separate backend keys for separate environments.
 
-### 5. Implement and deploy the platform
+### 5. Deploy the platform resource group
 
-The root resource files and modules are placeholders and currently deploy no platform resources. Add the platform configuration and its variables before running `terraform plan` and `terraform apply`. Do not put credentials in `terraform.tfvars`.
+Edit `terraform.tfvars` to set the platform resource group name, Azure region, and tags. These settings are separate from the bootstrap resource group. The deploying identity needs permission to create resource groups in the subscription; the bootstrap's resource-group-scoped Contributor assignment does not grant that permission.
+
+```bash
+terraform fmt -check -recursive
+terraform validate
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+The configuration currently deploys only the resource group. Add the remaining platform resources and module implementations separately. Do not put credentials in `terraform.tfvars`.
 
 ### 6. Approve the Managed Private Endpoint
 

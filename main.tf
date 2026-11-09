@@ -1,1 +1,5 @@
-# Terraform resources for the Azure data platform.
+resource "azurerm_resource_group" "platform" {
+  name     = var.resource_group_name
+  location = var.location
+  tags     = var.tags
+}
