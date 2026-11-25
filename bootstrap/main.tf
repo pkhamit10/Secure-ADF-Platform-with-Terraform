@@ -4,6 +4,10 @@ resource "azurerm_resource_group" "state" {
   name     = var.resource_group_name
   location = var.location
   tags     = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "azurerm_storage_account" "state" {
@@ -49,4 +53,12 @@ resource "azurerm_role_assignment" "state_blob_contributor" {
   scope                = azurerm_storage_account.state.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
+}
+
+resource "azurerm_role_assignment" "state_blob_contributor_extra" {
+  for_each = toset(var.state_access_principal_ids)
+
+  scope                = azurerm_storage_account.state.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = each.value
 }
