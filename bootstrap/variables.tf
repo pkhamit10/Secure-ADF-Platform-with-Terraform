@@ -44,5 +44,5 @@ variable "tags" {
 variable "state_access_principal_ids" {
   description = "Object IDs of extra identities (for example the Azure DevOps service connection) granted Storage Blob Data Contributor on the state storage account."
   type        = list(string)
-  default     = ["1fab609a-d67d-4728-96b8-0268891f430b"]
+  default     = ["3212b6d7-de75-404f-91e8-4b758123bc2f"]
 }
